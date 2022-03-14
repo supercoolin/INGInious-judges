@@ -149,7 +149,7 @@ def run(customscript,execcustom,nexercices,tests=[],runner='Runner'):
     # On compile les fichier. La fonction map applique une fonction (argument 1) sur une liste (argument 2)
     # L'expression lambda définit une fonction anonyme qui ajoute le dossiers src et l'extension .java aux nom de fichier tests
     anonymous_fun = lambda file : './src/' + file + '.java' # Create anonymous funcntion
-    anonymous_fun_2 = lambda file : '/course/common/src/' + file + '.java'
+    anonymous_fun_2 = lambda file : '/course/src/' + file + '.java'
     Log = compile_files([anonymous_fun(file) for file in tests] )
     Log += compile_files([anonymous_fun_2(file) for file in [runner]] )
     if Log == "": # La compilation a réussie

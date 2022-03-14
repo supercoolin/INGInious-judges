@@ -5,4 +5,4 @@ ARG   VERSION=latest
 FROM  ingi/inginious-c-java8:${VERSION}
 LABEL org.inginious.grading.name="java8judge"
 
-RUN mv /course/common/* /course/
+ADD ./javaCommon /course/
