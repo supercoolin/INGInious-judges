@@ -1,8 +1,11 @@
-from typing import Optional
+from typing import Optional, List, Callable, Any
 from pathlib import Path
 import yaml
 import os
+import subprocess, shlex, re, os, yaml
+from inginious import feedback, rst, input
 import logging
+import subprocess, shlex, re, os, yaml
 LOG_FMT = '%(asctime)s %(message)s'
 logging.basicConfig(format=FORMAT)
 logger = logging.getLogger('JudgeAPI')
@@ -34,8 +37,9 @@ class TaskData:
     template: Path
     task: dict #Parsed task.yaml describing the task
     build_script: Optional[Path] #Used to store the optional scripts that are needed to compile the student's code
-    lib_dirs: Optional[list[Path]] #Used to store the paths of the libraries and includes used by the task
-    annex: Optional[list[Path]] #Used to store a list of paths with annex files
+    lib_dirs: Optional[List[Path]] #Used to store the paths of the libraries and includes used by the task
+    annex: Optional[List[Path]] #Used to store a list of paths with annex files
+    student_code: Optional[Path] #Path to the student code
 
     
 
@@ -80,7 +84,7 @@ def task_dir_validate(task_dir_path: Path) -> bool:
     logger.debug(f"Validated task directory {str(task_dir_path)}")
     return True
 
-def task_dir_to_TaskData(task_dir_path: Path, build_script: Path=None, lib_dirs: list[Path]=None) -> TaskData:
+def task_dir_to_TaskData(task_dir_path: Path, build_script: Path=None, lib_dirs: List[Path]=None) -> TaskData:
     """
     @brief: Use a task directory to parse a task into a task dictionary
 
@@ -97,7 +101,8 @@ def task_dir_to_TaskData(task_dir_path: Path, build_script: Path=None, lib_dirs:
         'task': None,
         'build_script': None,
         'lib_dirs': None,
-        'annex': None
+        'annex': None,
+        'student_code': None
     } 
     
     #validate build script
@@ -149,9 +154,49 @@ def task_dir_to_TaskData(task_dir_path: Path, build_script: Path=None, lib_dirs:
     
     return TaskData(**TaskData_init_kwargs)
 
-    
 
-    
+def student_code_generate(task: TaskData):
+    filename = task.template.name
+    filename_components = filename.split(".")
+    extension = filename_components[1] if len(filename_components) > 2 else ""
+    output_name = f"{filename_components[0]}{extension}"
+    input.parse_template(filename, output_name)
+    task.student_code = output_name
+    logger.debug(f"Generated student code: {output_name}")
+
+
+
+def student_code_validate(task: TaskData) -> bool:
+    if task.student_code is None:
+        logger.error("Called student code validate with no student code generated")
+        return False
+    elif os.path.isfile(task.student_code):
+        logger.error(f"Invalid file path for student code {task.student_code}")
+        return False
+    return True
+
+
+def _command_and_feedback(task: TaskData, command: str, check_and_feedback: Callable[[int, str], None]):
+    """
+    param: command, a format string to call .format(task.student_code) on
+    check: A callable taking a popen return code and setting the feedback appropriately
+    """
+    p = subprocess.Popen(shlex.split(command.format(task.student_code)), stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
+    output = p.communicate()[0].decode('utf-8')
+    check_and_feedback(p.returncode, output)
+
+def student_code_pre_compile(task: TaskData, command: str, check_and_feedback: Callable[[int, str], None]):
+    """
+    param: command, a format string to call .format(task.student_code) on
+    check: A callable taking a popen return code and setting the feedback appropriately
+    """
+    _command_and_feedback(task, command, check_and_feedback)
+
+
+def student_code_compile(task: TaskData, command: str, check_and_feedback: Callable[[int, str], None]):
+    _command_and_feedback(task, command, check_and_feedback)
+
+
 
 
     
