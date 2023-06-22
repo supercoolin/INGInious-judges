@@ -2,13 +2,13 @@ from typing import Optional, List, Callable, Any
 from pathlib import Path
 import yaml
 import os
-import subprocess, shlex, re, os, yaml
-from inginious import feedback, rst, input
 import logging
 import subprocess, shlex, re, os, yaml
-LOG_FMT = '%(asctime)s %(message)s'
-logging.basicConfig(format=FORMAT)
+from dataclasses import dataclass
+from itertools import chain
+logging.basicConfig()
 logger = logging.getLogger('JudgeAPI')
+logger.setLevel('DEBUG')
 """
 Task common, the file defining the API that will be used for the C judge system.
 
@@ -56,29 +56,28 @@ def task_dir_validate(task_dir_path: Path) -> bool:
         return False
     #list task files
     dir_content = os.listdir(task_dir_path)
-    dir_files = {str(f).lower():f for f in dir_content if os.path.isfile(f)}
-    dir_subdirs = {str(d).lower():d for d in dir_content if os.path.isdir(d)}
+    dir_files = {str(f).lower():f for f in dir_content if os.path.isfile(os.path.join(task_dir_path, f))}
+    dir_subdirs = {str(d).lower():d for d in dir_content if os.path.isdir(os.path.join(task_dir_path, d))}
 
     #check for mandatory files and subdirectories
     if "task.yaml" not in dir_files and "task.yml" not in dir_files:
-        logger.debug(f"Could not find task.yaml in {str(task_dir_path)}")
+        logger.warning(f"Could not find task.yaml in {str(task_dir_path)}")
         return False
     
     if "run" not in dir_files:
-        logger.debug(f"Could not find run file in {task_dir_path}")
+        logger.warning(f"Could not find run file in {task_dir_path}")
         return False
     
     if "student" not in dir_subdirs:
-        logger.debug(f"Could not find student folder in {task_dir_path}. Maybe the tasks are too simple for using this API ?")
+        logger.warning(f"Could not find student folder in {task_dir_path}. Maybe the tasks are too simple for using this API ?")
         return False
     
     #check the content of the student directory
-
     student_dir = os.path.join(task_dir_path, dir_subdirs['student'])
-    student_dir_content_splitted = [str(c).to_lower().split('.') for c in os.listdir(student_dir)]
-    student_dir_content_ext = [splitted[1] for c in student_dir_content_splitted if len(splitted) > 1]
-    if 'tpl' not in student_dir_content_ext:
-        logger.debug(f"Could not find template file in {str(student_dir)}")
+    student_dir_content_splitted = [str(c).lower().split('.') for c in os.listdir(student_dir)]
+    student_dir_content_ext = [splitted[1:] for splitted in student_dir_content_splitted if len(splitted) > 1]
+    if 'tpl' not in chain(*student_dir_content_ext):
+        logger.warning(f"Could not find template file in {str(student_dir)}")
         return False
 
     logger.debug(f"Validated task directory {str(task_dir_path)}")
@@ -123,18 +122,20 @@ def task_dir_to_TaskData(task_dir_path: Path, build_script: Path=None, lib_dirs:
     
     #discover files and folders
     task_dir_content = {str(content).lower():content for content in os.listdir(task_dir_path)}
-    task_dir_files = {name:path for name, path in task_dir_content.items() if os.path.isfile(path)}
-    task_dir_subdirs = {name:path for name, path in task_dir_content.items() if os.path.isdir(s)(path)}
+    task_dir_files = {name:path for name, path in task_dir_content.items() if os.path.isfile(os.path.join(task_dir_path, path))}
+    task_dir_subdirs = {name:path for name, path in task_dir_content.items() if os.path.isdir(os.path.join(task_dir_path, path))}
 
     #Guess the yaml extension to the task file and load it into a dict
     task_file = task_dir_files['task.yaml'] if 'task.yaml' in task_dir_files else task_dir_files['task.yml']
-    with open(task_file, 'r') as f:
-        TaskData_init_kwargs['task'] = yaml.load(f)
+    with open(os.path.join(task_dir_path, task_file), 'r') as f:
+        TaskData_init_kwargs['task'] = yaml.safe_load(f)
 
+    student_dir_path = os.path.join(task_dir_path, task_dir_content['student'])
+    
     #discover files and folders of the student directory
-    student_dir_content = {str(content).lower():content for content in os.listdir(os.path.join(task_dir_path, task_dir_content['student']))}
-    student_dir_files = {name:path for name, path in student_dir_content.items() if os.path.isfile(path)}
-    student_dir_subdirs = {name:path for name, path in student_dir_content.items() if os.path.isdir(s)(path)}
+    student_dir_content = {str(content).lower():content for content in os.listdir(student_dir_path)}
+    student_dir_files = {name:path for name, path in student_dir_content.items() if os.path.isfile(os.path.join(student_dir_path, path))}
+    student_dir_subdirs = {name:path for name, path in student_dir_content.items() if os.path.isfile(os.path.join(student_dir_path, path))}
 
     #retrieve the template file and the annex files
     annex = []
@@ -155,12 +156,12 @@ def task_dir_to_TaskData(task_dir_path: Path, build_script: Path=None, lib_dirs:
     return TaskData(**TaskData_init_kwargs)
 
 
-def student_code_generate(task: TaskData):
+def student_code_generate(task: TaskData, generator: Callable[[str, str], None]):
     filename = task.template.name
     filename_components = filename.split(".")
     extension = filename_components[1] if len(filename_components) > 2 else ""
     output_name = f"{filename_components[0]}{extension}"
-    input.parse_template(filename, output_name)
+    generator(filename, output_name)
     task.student_code = output_name
     logger.debug(f"Generated student code: {output_name}")
 
