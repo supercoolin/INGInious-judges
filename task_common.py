@@ -176,26 +176,63 @@ def student_code_validate(task: TaskData) -> bool:
     return True
 
 
-def _command_and_feedback(task: TaskData, command: str, check_and_feedback: Callable[[int, str], None]):
+def _command_and_feedback(task: TaskData, command: str, check_and_feedback: Callable[[int, str], bool]):
     """
-    param: command, a format string to call .format(task.student_code) on
-    check: A callable taking a popen return code and setting the feedback appropriately
+    Wrapper around launching a command and setting feedback
+    command: any command to be run using Popen
+    check_and_feedback: a callable taking the status code of the process 
+                        to be called by command and the output of said command, it does the feedback accordingly.
     """
-    p = subprocess.Popen(shlex.split(command.format(task.student_code)), stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
-    output = p.communicate()[0].decode('utf-8')
-    check_and_feedback(p.returncode, output)
+    if(len(command) >= 0):
+        p = subprocess.Popen(shlex.split(command.format(task.student_code)), stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
+        output = p.communicate()[0].decode('utf-8')
+        return check_and_feedback(p.returncode, output)
+    return True
 
 def student_code_pre_compile(task: TaskData, command: str, check_and_feedback: Callable[[int, str], None]):
     """
-    param: command, a format string to call .format(task.student_code) on
-    check: A callable taking a popen return code and setting the feedback appropriately
+    The commands to be called before we even try to compile the student code
+    task: structure containing the data related to the task we're testing
+    command: a string containing the command necessary for the pre compilation step
+    check_and_feedback: a callable taking the status code of the process 
+                        to be called by command and the output of said command, it does the feedback accordingly.
+    
     """
-    _command_and_feedback(task, command, check_and_feedback)
+    return _command_and_feedback(task, command, check_and_feedback)
 
 
 def student_code_compile(task: TaskData, command: str, check_and_feedback: Callable[[int, str], None]):
-    _command_and_feedback(task, command, check_and_feedback)
+    """
+    Performs the compilation of the student code and performs the test related to it
+    task: structure containing the data related to the task we're testing
+    command: a string containing the command necessary for the compilation step
+    check_and_feedback: a callable taking the status code of the process 
+                        to be called by command and the output of said command, it does the feedback accordingly.
+    """
+    return _command_and_feedback(task, command, check_and_feedback)
 
+
+def student_code_post_compile(task: TaskData, command: str, check_and_feedback: Callable[[int, str], None]):
+    """
+    The commands to be called after we know the compilation went well
+    task: structure containing the data related to the task we're testing
+    command: a string containing the command necessary for the extra compilation steps
+    check_and_feedback: a callable taking the status code of the process 
+                        to be called by command and the output of said command, it does the feedback accordingly.
+    
+    """
+    return _command_and_feedback(task, command, check_and_feedback)
+
+def student_code_test(task: TaskData, test: Callable[[Any], None]):
+    """
+    Any supplementary test in pure python to run from the outside of the student code
+    task: structure containing the data related to the task we're testing
+    test: the function that will perform the tests and eventually give a feedback
+    """
+    pass
+
+def student_code_test_external(task: TaskData, command: str, check_and_feedback: Callable[[int, str], None]):
+    return _command_and_feedback(task, command, check_and_feedback)
 
 
 
