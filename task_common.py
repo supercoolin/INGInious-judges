@@ -79,7 +79,7 @@ def task_dir_validate(task_dir_path: Path) -> bool:
     if 'tpl' not in chain(*student_dir_content_ext):
         logger.warning(f"Could not find template file in {str(student_dir)}")
         return False
-
+    
     logger.debug(f"Validated task directory {str(task_dir_path)}")
     return True
 
@@ -143,9 +143,9 @@ def task_dir_to_TaskData(task_dir_path: Path, build_script: Path=None, lib_dirs:
         splitted = fname.split('.')
         #TODO USE REGEX IN CASE OF MULTIPLE EXTENSIONS
         if len(splitted) > 1:
-            ext = splitted[1]
+            ext = splitted[-1]
             if ext == 'tpl':
-                TaskData_init_kwargs['template'] = fpath
+                TaskData_init_kwargs['template'] = Path(fpath)
             elif fname != build_script:
                 annex.append(fpath)
         elif fname != build_script:
@@ -160,7 +160,7 @@ def student_code_generate(task: TaskData, generator: Callable[[str, str], None])
     filename = task.template.name
     filename_components = filename.split(".")
     extension = filename_components[1] if len(filename_components) > 2 else ""
-    output_name = f"{filename_components[0]}{extension}"
+    output_name = f"{filename_components[0]}.{extension}"
     generator(filename, output_name)
     task.student_code = output_name
     logger.debug(f"Generated student code: {output_name}")

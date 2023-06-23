@@ -4,6 +4,7 @@ from tests.test_task_data import TaskDataTestCase
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(TaskDataTestCase('test_task_dir_to_TaskData'))
+    suite.addTest(TaskDataTestCase('test_student_code_generate'))
     return suite
 
 if __name__ == '__main__':
