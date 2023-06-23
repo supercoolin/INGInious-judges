@@ -34,6 +34,7 @@ Where annex files can be any file used by the course/task, and the elements betw
 """
 @dataclass
 class TaskData:
+    task_root: Path
     template: Path
     task: dict #Parsed task.yaml describing the task
     build_script: Optional[Path] #Used to store the optional scripts that are needed to compile the student's code
@@ -96,6 +97,7 @@ def task_dir_to_TaskData(task_dir_path: Path, build_script: Path=None, lib_dirs:
         raise ValueError("Invalid argument")
 
     TaskData_init_kwargs= {
+        'task_root': None,
         'template': None,
         'task': None,
         'build_script': None,
@@ -103,10 +105,10 @@ def task_dir_to_TaskData(task_dir_path: Path, build_script: Path=None, lib_dirs:
         'annex': None,
         'student_code': None
     } 
-    
+    TaskData_init_kwargs['task_root'] = task_dir_path
     #validate build script
     if build_script and os.path.isfile(build_script):
-        TaskData_init_kwargs['build_script'] = build_script
+        TaskData_init_kwargs['build_script'] = os.path.join(task_dir_path, build_script)
     elif build_script:
         logger.warning(f"Build script file {build_script} does not exist")
     
@@ -115,7 +117,7 @@ def task_dir_to_TaskData(task_dir_path: Path, build_script: Path=None, lib_dirs:
         valid_libs = []
         for p in lib_dirs:
             if os.path.isdir(p):
-                valid_libs.append(p)
+                valid_libs.append(os.path.join(task_dir_path, p))
             else:
                 logger.warning(f"Library/include directory {p} does not exist")
         TaskData_init_kwargs['lib_dirs'] = valid_libs
@@ -145,11 +147,11 @@ def task_dir_to_TaskData(task_dir_path: Path, build_script: Path=None, lib_dirs:
         if len(splitted) > 1:
             ext = splitted[-1]
             if ext == 'tpl':
-                TaskData_init_kwargs['template'] = Path(fpath)
+                TaskData_init_kwargs['template'] = Path(os.path.join(student_dir_path, fpath))
             elif fname != build_script:
-                annex.append(fpath)
+                annex.append(Path(os.path.join(student_dir_path, fpath)))
         elif fname != build_script:
-            annex.append(fpath)
+            annex.append(Path(os.path.join(student_dir_path, fpath)))
     if len(annex) > 0:
         TaskData_init_kwargs['annex'] = annex
     
@@ -161,8 +163,10 @@ def student_code_generate(task: TaskData, generator: Callable[[str, str], None])
     filename_components = filename.split(".")
     extension = filename_components[1] if len(filename_components) > 2 else ""
     output_name = f"{filename_components[0]}.{extension}"
-    generator(filename, output_name)
-    task.student_code = output_name
+    in_path = os.path.join(task.task_root, 'student', filename)
+    out_path = os.path.join(task.task_root, 'student', output_name)
+    generator(in_path, out_path)
+    task.student_code = out_path
     logger.debug(f"Generated student code: {output_name}")
 
 
@@ -171,7 +175,7 @@ def student_code_validate(task: TaskData) -> bool:
     if task.student_code is None:
         logger.error("Called student code validate with no student code generated")
         return False
-    elif os.path.isfile(task.student_code):
+    elif not os.path.isfile(task.student_code):
         logger.error(f"Invalid file path for student code {task.student_code}")
         return False
     return True
@@ -224,15 +228,20 @@ def student_code_post_compile(task: TaskData, command: str, check_and_feedback: 
     """
     return _command_and_feedback(task, command, check_and_feedback)
 
-def student_code_test(task: TaskData, test: Callable[[Any], None]):
+def student_code_test_execution(task: TaskData, test: Callable[[Any], None]):
     """
-    Any supplementary test in pure python to run from the outside of the student code
+    Run the tests during the student code execution
     task: structure containing the data related to the task we're testing
-    test: the function that will perform the tests and eventually give a feedback
+    test: the function that will perform the tests and optionally give a feedback
     """
     pass
 
 def student_code_test_external(task: TaskData, command: str, check_and_feedback: Callable[[int, str], None]):
+    """
+    Any supplementary test in pure python to run from the outside of the student code
+    task: structure containing the data related to the task we're testing
+    test: the function that will perform the tests and optionally give a feedback
+    """
     return _command_and_feedback(task, command, check_and_feedback)
 
 
