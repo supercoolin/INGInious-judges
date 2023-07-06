@@ -206,7 +206,7 @@ def student_code_pre_compile(task: TaskData, command: str, check_and_feedback: C
     return _command_and_feedback(task, command, check_and_feedback)
 
 
-def student_code_compile(task: TaskData, command: str, check_and_feedback: Callable[[int, str], None]):
+def student_code_compile(task: TaskData, command: str, check_and_feedback: Callable[[int, str, Optional[Path], Optional[List[Path]]], None]):
     """
     Performs the compilation of the student code and performs the test related to it
     task: structure containing the data related to the task we're testing
@@ -214,7 +214,11 @@ def student_code_compile(task: TaskData, command: str, check_and_feedback: Calla
     check_and_feedback: a callable taking the status code of the process 
                         to be called by command and the output of said command, it does the feedback accordingly.
     """
-    return _command_and_feedback(task, command, check_and_feedback)
+    if(len(command) >= 0):
+        p = subprocess.Popen(shlex.split(command.format(task.student_code)), stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
+        output = p.communicate()[0].decode('utf-8')
+        return check_and_feedback(p.returncode, output)
+    return True
 
 
 def student_code_post_compile(task: TaskData, command: str, check_and_feedback: Callable[[int, str], None]):
@@ -247,7 +251,47 @@ def student_code_test_external(task: TaskData, command: str, check_and_feedback:
 
 
     
-    
+class FrameWorkBuilder:
+    """
+    This class handles the state between the steps of creating a task framework. First add the commands and functions
+    then call the builder to get a task runner function. This allows for modularity as you can modify the state between
+    successive calls to the build method
+    """
+    def __init__(self):
 
+        self.pre_compile_pair = (None, None)
+        self.compile_pair = (None, None)
+        self.post_compile_pair = (None, None)
+        self.test_pair = (None, None)
+        self.test_external = (None, None)
+
+
+    def set_pre_compile_pair(self, command: str, fun: Callable[[int, str], None]):
+
+        self.pre_compile_pair = (command, fun)
+
+
+    def set_compile_pair(self, command: str, fun: Callable[[int, str, Optional[Path], Optional[List[Path]]], None]):
+
+        self.compile_pair = (command, fun)
+
+
+    def set_post_compile_pair(self, command: str, fun: Callable[[int, str], None]):
+
+        self.post_compile_pair = (command, fun)
+
+
+    def set_test_pair(self, command: str, fun: Callable[[Any], None]):
+
+        self.test_pair = (command, fun)
+
+
+    def set_test_external(self, command: str, fun: Callable[[int, str], None]):
+
+        self.test_external = (command, fun)
+
+    def build_framework(self):
+        def run_task(task_dir: Path):
+            
 
     
